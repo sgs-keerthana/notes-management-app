@@ -1,28 +1,36 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate , useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { loginUser, registerUser, type AuthResponse,} from "../api/authApi";
+import {loginUser,registerUser,type AuthResponse,} from "../api/authApi";
 import { fetchTenants } from "../api/tenantApi";
 
 interface AuthPageProps {
-  onLogin: (token: string) => void;
+  onLogin: (token: string, tenantId: string) => void;
 }
 
 export default function AuthPage({ onLogin }: AuthPageProps) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
-  // Read the tenant ID passed from the Tenants page URL.
-  const selectedTenantId = searchParams.get("tenantId") ?? "";
+  const initialTenantId =
+    localStorage.getItem("selectedTenantId") || "";
+
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tenantId, setTenantId] = useState(selectedTenantId);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [tenantId, setTenantId] = useState(initialTenantId);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [tenantError, setTenantError] = useState("");
+  const [ searchParams ] = useSearchParams();
+  //const initialTenantId=searchParams.get("tenantId") || localStorage.getItem("selectedTenantId")||"";
 
-  // Fetch the tenants to populate the registration dropdown.
+
+  // Fetch tenants for registration.
   const {
     data: tenants = [],
     isLoading: tenantsLoading,
@@ -30,14 +38,44 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
   } = useQuery({
     queryKey: ["tenants"],
     queryFn: fetchTenants,
+    enabled: isRegister,
   });
 
   function switchMode(registerMode: boolean) {
     setIsRegister(registerMode);
+
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+
+    setTenantId(
+      searchParams.get("tenantId") ||
+      localStorage.getItem("selectedTenantId") || ""
+    );
+
+    setEmailError("");
+    setPasswordError("");
+    setConfirmPasswordError("");
+    setTenantError("");
+
     setErrorMessage("");
     setSuccessMessage("");
-    setPassword("");
-    setTenantId(searchParams.get("tenantId") ?? "");
+  }
+
+  function validateEmail(value: string): string {
+    const trimmedEmail = value.trim();
+
+    if (!trimmedEmail) {
+      return "Email is required.";
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(trimmedEmail)) {
+      return "Please enter a valid email address.";
+    }
+
+    return "";
   }
 
   async function handleSubmit(
@@ -49,35 +87,63 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
     setSuccessMessage("");
 
     const trimmedEmail = email.trim();
+    let hasError = false;
 
-    // Frontend validation.
-    if (!trimmedEmail) {
-      setErrorMessage("Please enter your email address.");
-      return;
+    // Email validation.
+    const currentEmailError = validateEmail(trimmedEmail);
+    setEmailError(currentEmailError);
+
+    if (currentEmailError) {
+      hasError = true;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setErrorMessage("Please enter a valid email address.");
-      return;
+    // Password validation.
+    if (!password.trim()) {
+      setPasswordError("Password is required.");
+      hasError = true;
+    } else if (isRegister && password.length < 8) {
+      setPasswordError(
+        "Password must contain at least 8 characters."
+      );
+      hasError = true;
+    } else if (password.length > 72) {
+      setPasswordError(
+        "Password cannot exceed 72 characters."
+      );
+      hasError = true;
+    } else {
+      setPasswordError("");
     }
 
-    if (!password) {
-      setErrorMessage("Please enter your password.");
-      return;
+    // Confirm password validation.
+    if (isRegister && !confirmPassword) {
+      setConfirmPasswordError(
+        "Please confirm your password."
+      );
+      hasError = true;
+    } else if (
+      isRegister &&
+      password !== confirmPassword
+    ) {
+      setConfirmPasswordError(
+        "Passwords do not match."
+      );
+      hasError = true;
+    } else {
+      setConfirmPasswordError("");
     }
 
-    if (isRegister && password.length < 8) {
-      setErrorMessage("Password must contain at least 8 characters.");
-      return;
-    }
-
-    if (password.length > 72) {
-      setErrorMessage("Password cannot exceed 72 characters.");
-      return;
-    }
-
+    // Tenant validation - registration only.
     if (isRegister && !tenantId) {
-      setErrorMessage("Please select a tenant.");
+      setTenantError(
+        "Please select a tenant to continue."
+      );
+      hasError = true;
+    } else {
+      setTenantError("");
+    }
+
+    if (hasError) {
       return;
     }
 
@@ -85,31 +151,74 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
 
     try {
       if (isRegister) {
-        // Create the user under the selected tenant.
-        await registerUser(trimmedEmail, password, tenantId);
+        // Register user with the selected tenant.
+        const response = await registerUser(
+          trimmedEmail,
+          password,
+          tenantId
+        );
+
+        localStorage.setItem(
+          "selectedTenantId",
+          tenantId
+        );
 
         setSuccessMessage(
-          "Registration successful! You can now log in."
+          response.message ||
+            "Registration successful! You can now log in."
         );
 
         setIsRegister(false);
+
         setPassword("");
+        setConfirmPassword("");
+
+        setPasswordError("");
+        setConfirmPasswordError("");
       } else {
-        // Log in using the registered email and password.
+        // Login using the stored tenant ID.
+        const storedTenantId =
+          localStorage.getItem("selectedTenantId") ||
+          "";
+
+        if (!storedTenantId) {
+          setErrorMessage(
+            "No tenant is selected. Please register or select a tenant first."
+          );
+          return;
+        }
+
         const response: AuthResponse = await loginUser(
           trimmedEmail,
-          password
+          password,
+          storedTenantId
         );
 
-        onLogin(response.token);
-        navigate("/notes", { replace: true });
+        // Store JWT and selected tenant through App.
+        onLogin(
+          response.token,
+          response.user.tenantId
+        );
+
+        navigate(`/notes?tenantId=${encodeURIComponent(response.user.tenantId)}`, { replace: true });
       }
-    } catch (error) {
-      setErrorMessage(
+    } catch (error: unknown) {
+      const message =
         error instanceof Error
           ? error.message
-          : "Something went wrong. Please try again."
-      );
+          : "";
+
+      if (!isRegister) {
+        setErrorMessage(
+          message ||
+            "Login failed. Please check your credentials."
+        );
+      } else {
+        setErrorMessage(
+          message ||
+            "Something went wrong. Please try again."
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -119,7 +228,9 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
     <main className="flex min-h-[80vh] items-center justify-center bg-gray-100 px-4 py-10">
       <section className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
         <h1 className="mb-2 text-center text-3xl font-bold text-gray-800">
-          {isRegister ? "Create an Account" : "Welcome Back"}
+          {isRegister
+            ? "Create an Account"
+            : "Welcome Back"}
         </h1>
 
         <p className="mb-6 text-center text-gray-500">
@@ -127,6 +238,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
             ? "Register to start managing your notes."
             : "Log in to access your notes."}
         </p>
+
         {errorMessage && (
           <div
             role="alert"
@@ -145,47 +257,12 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {isRegister && (
-            <div>
-              <label
-                htmlFor="tenant"
-                className="mb-1 block font-medium text-gray-700"
-              >
-                Select Tenant
-              </label>
-
-              <select
-                id="tenant"
-                value={tenantId}
-                onChange={(event) => setTenantId(event.target.value)}
-                disabled={tenantsLoading || tenantsError}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                required
-              >
-                <option value="">
-                  {tenantsLoading
-                    ? "Loading tenants..."
-                    : tenantsError
-                      ? "Unable to load tenants"
-                      : "Choose a tenant"}
-                </option>
-
-                {tenants.map((tenant) => (
-                  <option key={tenant.id} value={tenant.id}>
-                    {tenant.name}
-                  </option>
-                ))}
-              </select>
-
-              {tenantsError && (
-                <p className="mt-1 text-sm text-red-600">
-                  Could not load tenants. Please refresh the page.
-                </p>
-              )}
-            </div>
-          )}
-
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="space-y-5"
+        >
+          {/* Email */}
           <div>
             <label
               htmlFor="email"
@@ -198,14 +275,91 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
               id="email"
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setEmail(value);
+
+                setEmailError(
+                  value.trim()
+                    ? validateEmail(value)
+                    : ""
+                );
+              }}
+              onBlur={() => {
+                if (email.trim()) {
+                  setEmailError(
+                    validateEmail(email)
+                  );
+                }
+              }}
               placeholder="Enter your email"
-              autoComplete="email"
+              autoComplete="off"
+              aria-invalid={Boolean(emailError)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              required
             />
+
+            {emailError && (
+              <p className="mt-1 text-sm text-red-600">
+                {emailError}
+              </p>
+            )}
           </div>
 
+          {/* Tenant selection - Register only */}
+          {isRegister && (
+            <div>
+              <label
+                htmlFor="tenant"
+                className="mb-1 block font-medium text-gray-700"
+              >
+                Workspace / Tenant
+              </label>
+
+              <select
+                id="tenant"
+                value={tenantId}
+                onChange={(event) => {
+                  setTenantId(event.target.value);
+                  setTenantError("");
+                }}
+                disabled={
+                  tenantsLoading || tenantsError
+                }
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="">
+                  {tenantsLoading
+                    ? "Loading tenants..."
+                    : tenantsError
+                      ? "Unable to load tenants"
+                      : "Choose a tenant"}
+                </option>
+
+                {tenants.map((tenant) => (
+                  <option
+                    key={tenant.id}
+                    value={tenant.id}
+                  >
+                    {tenant.name}
+                  </option>
+                ))}
+              </select>
+
+              {tenantsError && (
+                <p className="mt-1 text-sm text-red-600">
+                  Could not load tenants. Please refresh.
+                </p>
+              )}
+
+              {tenantError && (
+                <p className="mt-1 text-sm text-red-600">
+                  {tenantError}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Password */}
           <div>
             <label
               htmlFor="password"
@@ -218,27 +372,79 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
               id="password"
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setPasswordError("");
+              }}
               placeholder={
                 isRegister
                   ? "Create a password (minimum 8 characters)"
                   : "Enter your password"
               }
               autoComplete={
-                isRegister ? "new-password" : "current-password"
+                isRegister
+                  ? "new-password"
+                  : "current-password"
               }
-              minLength={isRegister ? 8 : undefined}
               maxLength={72}
+              aria-invalid={Boolean(passwordError)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              required
             />
+
+            {passwordError && (
+              <p className="mt-1 text-sm text-red-600">
+                {passwordError}
+              </p>
+            )}
           </div>
 
+          {/* Confirm Password - Register only */}
+          {isRegister && (
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="mb-1 block font-medium text-gray-700"
+              >
+                Confirm Password
+              </label>
+
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setConfirmPassword(value);
+                  if (value===""){
+                    setConfirmPasswordError("");
+                  } else if(value !== password){
+                    setConfirmPasswordError("Passwords do not match.");
+                  } else{
+                    setConfirmPassword("");
+                  }
+                }}
+                placeholder="Re-enter your password"
+                autoComplete="new-password"
+                maxLength={72}
+                aria-invalid={Boolean(confirmPasswordError)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+
+              {confirmPasswordError && (
+                <p className="mt-1 text-sm text-red-600">
+                  {confirmPasswordError}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Submit */}
           <button
             type="submit"
             disabled={
               isSubmitting ||
-              (isRegister && (tenantsLoading || tenantsError))
+              (isRegister &&
+                (tenantsLoading || tenantsError))
             }
             className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -250,10 +456,12 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
           </button>
         </form>
 
+        {/* Switch Login / Register */}
         <p className="mt-6 text-center text-sm text-gray-600">
           {isRegister
             ? "Already have an account?"
             : "Don't have an account?"}{" "}
+
           <button
             type="button"
             onClick={() => switchMode(!isRegister)}
@@ -274,3 +482,4 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
     </main>
   );
 }
+

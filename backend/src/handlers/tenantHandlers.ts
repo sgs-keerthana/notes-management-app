@@ -57,22 +57,20 @@ export const deleteTenant = async (request: Request) => {
   }
   // Prevent accidental deletion of a tenant
   // that still has users or notes.
-  const userCount = await User.count({
-    where: { tenantId: id },
-  });
+  // const userCount = await User.count({
+  //   where: { tenantId: id },
+  // });
 
   const noteCount = await Note.count({
     where: { tenantId: id },
   });
 
-  if (userCount > 0 || noteCount > 0) {
+  if (noteCount > 0) {
     throw Boom.conflict(
-      "Cannot delete a tenant that still contains users or notes"
+      "Cannot delete a tenant that still contains notes"
     );
   }
-
   await tenant.destroy();
-
   return {
     message: "Tenant deleted successfully",
   };

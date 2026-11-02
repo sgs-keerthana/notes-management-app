@@ -9,4 +9,14 @@ export const registerSchema = Joi.object({
 export const loginSchema = Joi.object({
   email: Joi.string().trim().email().max(255).required(),
   password: Joi.string().min(1).max(72).required(),
+  tenantId: Joi.string().uuid().required(),
+});
+
+export const addTenantSchema = Joi.object({
+  email: Joi.string().trim().email().max(255).required(),
+  tenantId: Joi.string().uuid().required(),
+});
+
+export const switchTenantSchema = Joi.object({
+  tenantId: Joi.string().required(),
 });

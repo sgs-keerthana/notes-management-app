@@ -53,6 +53,10 @@ export default function TenantManagement() {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = tenantName.trim();
+    if(!name){
+      setErrorMessage("Tenant name is required.");
+      return;
+    }
     if (name.length < 2 || name.length > 100) {
       setErrorMessage("Tenant name must contain 2 to 100 characters.");
       return;
@@ -80,7 +84,7 @@ export default function TenantManagement() {
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   return (
-    <main className="min-h-screen bg-gray-100 px-4 py-10">
+    <main className="h-screen bg-gray-100 px-4 py-10">
       <div className="mx-auto max-w-4xl">
         <h1 className="mb-2 text-3xl font-bold text-gray-800">
           Tenant Management
@@ -105,10 +109,11 @@ export default function TenantManagement() {
             id="tenantName"
             type="text"
             value={tenantName}
-            onChange={(event) => setTenantName(event.target.value)}
+            onChange={(event) => {setTenantName(event.target.value);
+              setErrorMessage("");
+            }}
             placeholder="Enter tenant name"
             maxLength={100}
-            required
             className="mb-4 w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
           />
           {errorMessage && (
@@ -164,7 +169,8 @@ export default function TenantManagement() {
             {tenants.map((tenant) => (
               <div
                 key={tenant.id}
-                onClick={() => navigate(`/login?tenantId=${tenant.id}`)}
+                onClick={() =>{localStorage.setItem("selectedTenantId",String(tenant.id));
+                   navigate(`/login?tenantId=${encodeURIComponent(tenant.id)}`)}}
                 className="flex cursor-pointer flex-col justify-between gap-3 rounded-lg border border-gray-200 p-4 transition hover:border-blue-500 hover:bg-blue-50 hover:shadow sm:flex-row sm:items-center"
             >
                 <div>
