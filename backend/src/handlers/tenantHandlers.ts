@@ -14,7 +14,6 @@ export const getTenants = async (request: Request,h: ResponseToolkit) => {
   const tenants = await Tenant.findAll({
     order: [["createdAt", "DESC"]],
   });
-
   return tenants;
 };
 
@@ -55,12 +54,6 @@ export const deleteTenant = async (request: Request) => {
   if (!tenant) {
     throw Boom.notFound("Tenant not found");
   }
-  // Prevent accidental deletion of a tenant
-  // that still has users or notes.
-  // const userCount = await User.count({
-  //   where: { tenantId: id },
-  // });
-
   const noteCount = await Note.count({
     where: { tenantId: id },
   });
