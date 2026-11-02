@@ -71,10 +71,8 @@ export const register = async ( request: Request,h: ResponseToolkit) => {
 
   // New user: create user and tenant membership together.
   const transaction = await sequelize.transaction();
-
   try {
     const passwordHash = await bcrypt.hash(password, 12);
-
     const user = await User.create(
       {
         email: normalizedEmail,
@@ -93,7 +91,6 @@ export const register = async ( request: Request,h: ResponseToolkit) => {
     );
 
     await transaction.commit();
-
     return h.response({
       message: "Registration successful",
       user: {
@@ -220,7 +217,6 @@ export const getMyTenants = async (request: Request, h: ResponseToolkit) => {
   };
 
   const userId = credentials.userId;
-
   if (!userId) {
     throw Boom.unauthorized("Invalid authentication token");
   }
