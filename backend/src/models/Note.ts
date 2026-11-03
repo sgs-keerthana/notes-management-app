@@ -21,6 +21,12 @@ const Note=sequelize.define(
             allowNull: false,
             defaultValue: "Medium",
         },
+        isDeleted:{
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+            field: "is_deleted",
+        },
     },
     {
         tableName: "notes",

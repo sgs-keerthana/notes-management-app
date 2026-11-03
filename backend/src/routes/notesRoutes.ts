@@ -1,12 +1,6 @@
 import type { ServerRoute } from "@hapi/hapi";
 import Joi from "joi";
-import {
-  getNotes,
-  createNote,
-  updateNote,
-  updateNotePriority,
-  deleteNote,
-} from "../handlers/notesHandlers";
+import {getNotes, createNote, updateNote, updateNotePriority, deleteNote,} from "../handlers/notesHandlers";
 
 const notePayloadSchema = Joi.object({
   title: Joi.string().trim().min(1).max(200).required(),
@@ -22,25 +16,26 @@ const updateNoteSchema = Joi.object({
 }).min(1);
 
 const prioritySchema = Joi.object({
-  priority: Joi.string()
-    .valid("Low", "Medium", "High")
-    .required(),
+  priority: Joi.string().valid("Low", "Medium", "High") .required(),
 });
 
-const idSchema = Joi.object({
-  id: Joi.string().uuid().required(),
+const idSchema = Joi.object({ id: Joi.string().uuid().required(),
 });
 
 export const notesRoutes: ServerRoute[] = [
   {
     method: "GET",
     path: "/notes",
+    options:{
+      auth: "jwt",
+    },
     handler: getNotes,
   },
   {
     method: "POST",
     path: "/notes",
     options: {
+      auth: "jwt",
       validate: { payload: notePayloadSchema },
     },
     handler: createNote,
@@ -49,6 +44,7 @@ export const notesRoutes: ServerRoute[] = [
     method: "PUT",
     path: "/notes/{id}",
     options: {
+      auth: "jwt",
       validate: {
         params: idSchema,
         payload: updateNoteSchema,
@@ -60,6 +56,7 @@ export const notesRoutes: ServerRoute[] = [
     method: "PATCH",
     path: "/notes/{id}/priority",
     options: {
+      auth: "jwt",
       validate: {
         params: idSchema,
         payload: prioritySchema,
@@ -71,6 +68,7 @@ export const notesRoutes: ServerRoute[] = [
     method: "DELETE",
     path: "/notes/{id}",
     options: {
+      auth: "jwt",
       validate: { params: idSchema },
     },
     handler: deleteNote,

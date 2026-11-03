@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
 import type { Request, ResponseToolkit } from "@hapi/hapi";
-import { Note } from "../models";
+import { findNotes,createNoteRecord,updateNoteRecord,updatePriorityRecord,deleteNoteRecord } from "../repositories/noteRepository";
 import { getAuthenticatedUser } from "../utils/auth";
 
 interface NotePayload {
@@ -27,30 +27,22 @@ function getNoteId(request: Request): string {
 // GET /notes
 export const getNotes = async (request: Request) => {
   const { userId, tenantId } = getAuthenticatedUser(request);
-
-  return Note.findAll({
-    where: { userId, tenantId },
-    order: [["createdAt", "DESC"]],
-  });
+  const notes = await findNotes(userId,tenantId);
+  return notes
 };
 
 // POST /notes
-export const createNote = async (
-  request: Request,
-  h: ResponseToolkit
-) => {
+export const createNote = async ( request: Request,h: ResponseToolkit) => {
   const { userId, tenantId } = getAuthenticatedUser(request);
-  const { title, content, priority } =
-    request.payload as NotePayload;
-
-  const note = await Note.create({
+  const { title, content, priority } =request.payload as NotePayload;
+  const note = await createNoteRecord({
     title,
     content,
     priority: priority ?? "Medium",
+  },
     userId,
     tenantId,
-  });
-
+  );
   return h.response({
     message: "Note created successfully",
     note,
@@ -62,37 +54,27 @@ export const updateNote = async (request: Request) => {
   const { userId, tenantId } = getAuthenticatedUser(request);
   const id = getNoteId(request);
   const payload = request.payload as UpdateNotePayload;
-
-  const note = await Note.findOne({
-    where: { id, userId, tenantId },
-  });
-
-  if (!note) {
-    throw Boom.notFound("Note not found");
-  }
-
   const updates: UpdateNotePayload = {};
-
   if (payload.title !== undefined) {
     updates.title = payload.title;
   }
-
   if (payload.content !== undefined) {
     updates.content = payload.content;
   }
-
   if (payload.priority !== undefined) {
     updates.priority = payload.priority;
   }
-
-  await note.update(updates);
-
+  const note = await updateNoteRecord(
+    id,
+    userId,
+    tenantId,
+    updates
+  );
   return {
     message: "Note updated successfully",
     note,
   };
 };
-
 // PATCH /notes/{id}/priority
 export const updateNotePriority = async (request: Request) => {
   const { userId, tenantId } = getAuthenticatedUser(request);
@@ -100,17 +82,12 @@ export const updateNotePriority = async (request: Request) => {
   const { priority } = request.payload as {
     priority: "Low" | "Medium" | "High";
   };
-
-  const note = await Note.findOne({
-    where: { id, userId, tenantId },
-  });
-
-  if (!note) {
-    throw Boom.notFound("Note not found");
-  }
-
-  await note.update({ priority });
-
+  const note = await updatePriorityRecord(
+    id,
+    userId,
+    tenantId,
+    priority
+  );
   return {
     message: "Note priority updated successfully",
     note,
@@ -121,18 +98,8 @@ export const updateNotePriority = async (request: Request) => {
 export const deleteNote = async (request: Request) => {
   const { userId, tenantId } = getAuthenticatedUser(request);
   const id = getNoteId(request);
-
-  const note = await Note.findOne({
-    where: { id, userId, tenantId },
-  });
-
-  if (!note) {
-    throw Boom.notFound("Note not found");
-  }
-
-  await note.destroy();
-
+  await deleteNoteRecord(id, userId, tenantId);
   return {
     message: "Note deleted successfully",
   };
-};
+}

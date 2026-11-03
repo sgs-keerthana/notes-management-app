@@ -13,8 +13,6 @@ const startServer = async(): Promise<void>=>{
     try{
         await sequelize.authenticate();
         console.log("PostgreSQL connection established successfully");
-        await sequelize.sync();
-        console.log("Database tables created successfully");
         const jwtSecret = process.env.JWT_SECRET;
         if(!jwtSecret || jwtSecret === "JWT_SECRET"){
             throw new Error("Configure a strong JWT_SECRET in your .env file");
